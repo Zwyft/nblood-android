@@ -1,3 +1,8 @@
+v3.4.1
+* Updated NBlood to latest (r14326)
+* Fixed NBlood joystick mode
+* Fixed NBlood analog movement
+
 v3.4
 * Updated Raze dev to 1.11.0
 * Updated EDuke32 dev to latest
