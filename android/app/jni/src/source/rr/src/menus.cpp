@@ -36,8 +36,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #ifdef __ANDROID__
 #include <android/log.h>
 #define ALOG(...) ((void)__android_log_print(ANDROID_LOG_INFO, "NBLOOD", __VA_ARGS__))
+struct MenuTraceScope
+{
+    const char *label;
+    int32_t cm;
+    ~MenuTraceScope() { ALOG("%s exit cm=%d", label, (int)cm); }
+};
+#define MENU_TRACE_SCOPE(label, cm) MenuTraceScope menu_trace_scope_##__LINE__{label, (int32_t)(cm)}
 #else
 #define ALOG(...) ((void)0)
+#define MENU_TRACE_SCOPE(label, cm) do { (void)(cm); } while (0)
 #endif
 
 #ifndef __ANDROID__
@@ -120,8 +128,20 @@ static void creditsminitext(int32_t x, int32_t y, const char *t, int32_t p)
 static savehead_t savehead;
 #pragma pack(pop)
 
+static FORCE_INLINE void Menu_EnsureMenuArtLoaded(void)
+{
+#ifdef __ANDROID__
+    tileLoad(MENUSCREEN);
+    tileLoad(MENUBAR);
+    tileLoad(SPINNINGNUKEICON);
+    tileLoad(SMALLFNTCURSOR);
+#endif
+}
+
 static void Menu_DrawBackground(const vec2_t origin)
 {
+    MENU_TRACE_SCOPE("Menu_DrawBackground", 0);
+    Menu_EnsureMenuArtLoaded();
     if (REALITY)
     {
         float ox = origin.x * (1.f/65536.f) * (240.f - 32.f) / (240.f);
@@ -132,15 +152,38 @@ static void Menu_DrawBackground(const vec2_t origin)
         RT_EnablePolymost();
         return;
     }
+#ifdef __ANDROID__
+    if (!waloff[MENUSCREEN])
+    {
+        ALOG("Menu_DrawBackground skipping missing MENUSCREEN");
+        return;
+    }
+    ALOG("Menu_DrawBackground before MENUSCREEN");
+#endif
     rotatesprite_fs(origin.x + (MENU_MARGIN_CENTER<<16), origin.y + (100<<16), 65536L,0,MENUSCREEN,16,0,10+64);
+#ifdef __ANDROID__
+    ALOG("Menu_DrawBackground after MENUSCREEN");
+#endif
 }
 
 static void Menu_DrawTopBar(const vec2_t origin)
 {
+    MENU_TRACE_SCOPE("Menu_DrawTopBar", 0);
+    Menu_EnsureMenuArtLoaded();
     if (REALITY)
         return;
+#ifdef __ANDROID__
+    if (!waloff[MENUBAR])
+    {
+        ALOG("Menu_DrawTopBar skipping missing MENUBAR");
+        return;
+    }
+    ALOG("Menu_DrawTopBar before MENUBAR");
+#endif
     rotatesprite_fs(origin.x + (MENU_MARGIN_CENTER<<16), origin.y + (19<<16), MF_Redfont.cursorScale3, 0,MENUBAR,16,0,10);
-    ALOG("After Menu_DrawTopBar");
+#ifdef __ANDROID__
+    ALOG("Menu_DrawTopBar after MENUBAR");
+#endif
 }
 
 static void Menu_DrawTopBarCaption(const char *caption, const vec2_t origin)
@@ -2686,6 +2729,7 @@ static void Menu_Pre(MenuID_t cm)
 
 static void Menu_PreDrawBackground(MenuID_t cm, const vec2_t origin)
 {
+    MENU_TRACE_SCOPE("Menu_PreDrawBackground", (int32_t)cm);
     switch (cm)
     {
     case MENU_MAIN:
@@ -2764,6 +2808,7 @@ static void Menu_DrawVerifyPrompt(int32_t x, int32_t y, const char * text, int n
 
 static void Menu_PreDraw(MenuID_t cm, MenuEntry_t *entry, const vec2_t origin)
 {
+    MENU_TRACE_SCOPE("Menu_PreDraw", (int32_t)cm);
     ALOG("Menu_PreDraw cm=%d", (int)cm);
     int32_t i, j, l = 0;
 
@@ -5964,6 +6009,7 @@ static void Menu_RunInput_FileSelect_Select(MenuFileSelect_t *object);
 
 static int32_t M_RunMenu_Menu(Menu_t *cm, MenuMenu_t *menu, MenuEntry_t *currentry, int32_t state, const vec2_t origin, bool actually_draw)
 {
+    MENU_TRACE_SCOPE("M_RunMenu_Menu", (int32_t)cm->menuID);
     ALOG("M_RunMenu_Menu cm=%d type=%d actually_draw=%d", (int)cm->menuID, (int)cm->type, (int)actually_draw);
     int32_t totalHeight = 0;
 
