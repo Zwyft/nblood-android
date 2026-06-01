@@ -2809,6 +2809,7 @@ static void Menu_DrawVerifyPrompt(int32_t x, int32_t y, const char * text, int n
 static void Menu_PreDraw(MenuID_t cm, MenuEntry_t *entry, const vec2_t origin)
 {
     MENU_TRACE_SCOPE("Menu_PreDraw", (int32_t)cm);
+    Menu_EnsureMenuArtLoaded();
     ALOG("Menu_PreDraw cm=%d", (int)cm);
     int32_t i, j, l = 0;
 
@@ -6010,6 +6011,7 @@ static void Menu_RunInput_FileSelect_Select(MenuFileSelect_t *object);
 static int32_t M_RunMenu_Menu(Menu_t *cm, MenuMenu_t *menu, MenuEntry_t *currentry, int32_t state, const vec2_t origin, bool actually_draw)
 {
     MENU_TRACE_SCOPE("M_RunMenu_Menu", (int32_t)cm->menuID);
+    Menu_EnsureMenuArtLoaded();
     ALOG("M_RunMenu_Menu cm=%d type=%d actually_draw=%d", (int)cm->menuID, (int)cm->type, (int)actually_draw);
     int32_t totalHeight = 0;
 
