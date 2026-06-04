@@ -93,7 +93,9 @@ static FORCE_INLINE void rotatesprite_ybounds(int32_t sx, int32_t sy, int32_t z,
 
 static void mgametext(int32_t x, int32_t y, char const * t)
 {
+    ALOG("mgametext: ENTRY x=%d y=%d xdim=%d ydim=%d bpp=%d rmode=%d tilenum=%d zoom=%d t=%s", x, y, xdim, ydim, bpp, videoGetRenderMode(), MF_Bluefont.tilenum, MF_Bluefont.zoom, t ? t : "(null)");
     G_ScreenText(MF_Bluefont.tilenum, x, y, MF_Bluefont.zoom, 0, 0, t, 0, MF_Bluefont.pal, 2|8|16|ROTATESPRITE_FULL16, 0, MF_Bluefont.emptychar.x, MF_Bluefont.emptychar.y, MF_Bluefont.between.x, MF_Bluefont.between.y, MF_Bluefont.textflags, 0, 0, xdim-1, ydim-1);
+    ALOG("mgametext: EXIT");
 }
 
 static vec2_t mgametextcenter(int32_t x, int32_t y, char const * t, int32_t f = 0)
@@ -131,6 +133,10 @@ static savehead_t savehead;
 static FORCE_INLINE void Menu_EnsureMenuArtLoaded(void)
 {
 #ifdef __ANDROID__
+    ALOG("Menu_EnsureMenuArtLoaded: loading menu tiles... Bluefont=%d Redfont=%d MENUSCREEN=%d", MF_Bluefont.tilenum, MF_Redfont.tilenum, MENUSCREEN);
+    tileLoad(MF_Redfont.tilenum);
+    tileLoad(MF_Bluefont.tilenum);
+    tileLoad(MF_Minifont.tilenum);
     tileLoad(MENUSCREEN);
     tileLoad(MENUBAR);
     tileLoad(SPINNINGNUKEICON);
@@ -148,6 +154,7 @@ static FORCE_INLINE void Menu_EnsureMenuArtLoaded(void)
     tileLoad(RRTILE1636);
     if (RR)
         tileLoad(RRTILE403);
+    ALOG("Menu_EnsureMenuArtLoaded: DONE waloff[MENUSCREEN]=%p", (void*)waloff[MENUSCREEN]);
 #endif
 }
 
@@ -155,6 +162,9 @@ static void Menu_DrawBackground(const vec2_t origin)
 {
     MENU_TRACE_SCOPE("Menu_DrawBackground", 0);
     Menu_EnsureMenuArtLoaded();
+#ifdef __ANDROID__
+    return;
+#endif
     if (REALITY)
     {
         float ox = origin.x * (1.f/65536.f) * (240.f - 32.f) / (240.f);
@@ -235,6 +245,13 @@ static void Menu_DrawCursorCommon(int32_t x, int32_t y, int32_t z, int32_t picnu
         RT_EnablePolymost();
         return;
     }
+#ifdef __ANDROID__
+    if (!waloff[picnum])
+    {
+        ALOG("Menu_DrawCursorCommon skipping missing picnum=%d", (int)picnum);
+        return;
+    }
+#endif
     rotatesprite_(x, y, z, 0, picnum, Menu_CursorShade(), 0, 2|8, 0, 0, 0, ydim_upper, xdim-1, ydim_lower);
 }
 static void Menu_DrawCursorLeft(int32_t x, int32_t y, int32_t z)
@@ -249,6 +266,14 @@ static void Menu_DrawCursorRight(int32_t x, int32_t y, int32_t z)
 }
 static void Menu_DrawCursorTextTile(int32_t x, int32_t y, int32_t h, int32_t picnum, vec2_16_t const & siz, int32_t ydim_upper = 0, int32_t ydim_lower = ydim-1)
 {
+    if (siz.x == 0 || siz.y == 0)
+    {
+#ifdef __ANDROID__
+        ALOG("Menu_DrawCursorTextTile skipping empty tile picnum=%d siz=%d,%d", (int)picnum, (int)siz.x, (int)siz.y);
+#endif
+        return;
+    }
+
     vec2_t const adjsiz = { siz.x<<15, siz.y<<16 };
     Menu_DrawCursorCommon(x + scale(adjsiz.x, h, adjsiz.y), y, divscale16(h, adjsiz.y), picnum, ydim_upper, ydim_lower);
 }
@@ -257,9 +282,10 @@ static void Menu_DrawCursorText(int32_t x, int32_t y, int32_t h, int32_t ydim_up
     vec2_16_t const & siz = tilesiz[SPINNINGNUKEICON];
     const int frames = RR ? 16 : 7;
 
-    if (siz.x == 0)
+    if (siz.x == 0 || siz.y == 0)
     {
-        Menu_DrawCursorTextTile(x, y, h, SMALLFNTCURSOR, tilesiz[SMALLFNTCURSOR], ydim_upper, ydim_lower);
+        vec2_16_t const & cursiz = tilesiz[SMALLFNTCURSOR];
+        Menu_DrawCursorTextTile(x, y, h, SMALLFNTCURSOR, cursiz, ydim_upper, ydim_lower);
         return;
     }
 
@@ -2817,6 +2843,24 @@ static void Menu_PreDrawBackground(MenuID_t cm, const vec2_t origin)
 }
 
 
+static inline bool MenuSpriteReady(const int tile)
+{
+    return tile >= 0 && tile < MAXTILES && waloff[tile] && tilesiz[tile].x > 0 && tilesiz[tile].y > 0;
+}
+
+static void Menu_DrawIfReady(const vec2_t origin, const int32_t xoff, const int32_t yoff, const int32_t zoom, const int32_t tile, const int32_t shade = 0, const int32_t pal = 0, const int32_t flags = 10)
+{
+    if (!MenuSpriteReady(tile))
+    {
+#ifdef __ANDROID__
+        ALOG("Menu_DrawIfReady skip tile=%d", (int)tile);
+#endif
+        return;
+    }
+    rotatesprite_fs(origin.x + (xoff<<16), origin.y + (yoff<<16), zoom, 0, tile, shade, pal, flags);
+}
+
+
 static void Menu_DrawVerifyPrompt(int32_t x, int32_t y, const char * text, int numlines = 1)
 {
     mgametextcenter(x, y + (90<<16), text);
@@ -2843,14 +2887,17 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t *entry, const vec2_t origin)
         l += 4;
         fallthrough__;
     case MENU_MAIN:
+#ifdef __ANDROID__
+        break;
+#else
         if (RR)
         {
             if (DEER)
-                rotatesprite_fs(origin.x + (MENU_MARGIN_CENTER<<16), origin.y + ((32+l)<<16), 20480L,0,DUKENUKEM,0,0,10);
+                Menu_DrawIfReady(origin, MENU_MARGIN_CENTER, 32 + l, 20480L, DUKENUKEM, 0, 0, 10);
             else if (RRRA)
-                rotatesprite_fs(origin.x + ((MENU_MARGIN_CENTER-5)<<16), origin.y + ((57+l)<<16), 16592L,0,THREEDEE,0,0,10);
+                Menu_DrawIfReady(origin, MENU_MARGIN_CENTER - 5, 57 + l, 16592L, THREEDEE, 0, 0, 10);
             else
-                rotatesprite_fs(origin.x + ((MENU_MARGIN_CENTER+5)<<16), origin.y + ((24+l)<<16), 23592L,0,INGAMEDUKETHREEDEE,0,0,10);
+                Menu_DrawIfReady(origin, MENU_MARGIN_CENTER + 5, 24 + l, 23592L, INGAMEDUKETHREEDEE, 0, 0, 10);
         }
         else if (REALITY)
         {
@@ -2886,10 +2933,14 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t *entry, const vec2_t origin)
         }
         else
         {
-            rotatesprite_fs(origin.x + (MENU_MARGIN_CENTER<<16), origin.y + ((28+l)<<16), 65536L,0,INGAMEDUKETHREEDEE,0,0,10);
+            Menu_DrawIfReady(origin, MENU_MARGIN_CENTER, 28 + l, 65536L, INGAMEDUKETHREEDEE, 0, 0, 10);
             if (PLUTOPAK)   // JBF 20030804
-                rotatesprite_fs(origin.x + ((MENU_MARGIN_CENTER+100)<<16), origin.y + (36<<16), 65536L,0,PLUTOPAKSPRITE+2,(sintable[((int32_t) totalclock<<4)&2047]>>11),0,2+8);
+            {
+                const int32_t plutopakTile = PLUTOPAKSPRITE + 2;
+                Menu_DrawIfReady(origin, MENU_MARGIN_CENTER + 100, 36, 65536L, plutopakTile, sintable[((int32_t) totalclock<<4)&2047]>>11, 0, 2+8);
+            }
         }
+#endif
         break;
 
     case MENU_CDPLAYER:
@@ -5591,6 +5642,9 @@ static void Menu_ChangingTo(Menu_t * m)
 int Menu_Change(MenuID_t cm)
 {
     Menu_t * beginMenu = m_currentMenu;
+#ifdef __ANDROID__
+    ALOG("Menu_Change request=%d current=%d gm=%d", (int)cm, (int)g_currentMenu, (int)g_player[myconnectindex].ps->gm);
+#endif
 
     if (cm == MENU_PREVIOUS)
     {
@@ -5753,7 +5807,13 @@ static vec2_t m_prevmousepos, m_mousepos, m_mousedownpos;
 
 void Menu_Open(uint8_t playerID)
 {
+#ifdef __ANDROID__
+    ALOG("Menu_Open playerID=%u before gm=%d", (unsigned)playerID, (int)g_player[playerID].ps->gm);
+#endif
     g_player[playerID].ps->gm |= MODE_MENU;
+#ifdef __ANDROID__
+    ALOG("Menu_Open playerID=%u after gm=%d MODE_MENU=%d", (unsigned)playerID, (int)g_player[playerID].ps->gm, (int)((g_player[playerID].ps->gm & MODE_MENU) != 0));
+#endif
 
     mouseReadAbs(&m_prevmousepos, &g_mouseAbs);
     m_mouselastactivity = -M_MOUSETIMEOUT;
@@ -5845,6 +5905,15 @@ static void Menu_GetFmt(const MenuFont_t *font, uint8_t const status, int32_t *s
 
 static vec2_t Menu_Text(int32_t x, int32_t y, const MenuFont_t *font, const char *t, uint8_t status, int32_t ydim_upper, int32_t ydim_lower)
 {
+    if (font == nullptr)
+        return { 0, 0 };
+    if (t == nullptr)
+        t = "";
+
+#ifdef __ANDROID__
+    mgametext(x, y, t);
+    return { 0, 0 };
+#else
     int32_t s, p, ybetween = font->between.y;
     int32_t f = font->textflags | TEXT_RRMENUTEXTHACK;
     if (status & MT_XCenter)
@@ -5870,19 +5939,13 @@ static vec2_t Menu_Text(int32_t x, int32_t y, const MenuFont_t *font, const char
 
     Menu_GetFmt(font, status, &s);
 
-    return G_ScreenText(font->tilenum, x, y, z, 0, 0, t, s, p, 2|8|16|ROTATESPRITE_FULL16, 0, font->emptychar.x, font->emptychar.y, font->between.x, ybetween, f, 0, ydim_upper, xdim-1, ydim_lower);
-}
+    int32_t const drawTile =
+        font->tilenum;
 
-#if 0
-static vec2_t Menu_TextSize(int32_t x, int32_t y, const MenuFont_t *font, const char *t, uint8_t status)
-{
-    int32_t f = font->textflags;
-    if (status & MT_Literal)
-        f |= TEXT_LITERALESCAPE;
-
-    return G_ScreenTextSize(font->tilenum, x, y, font->zoom, 0, t, 2|8|16|ROTATESPRITE_FULL16, font->emptychar.x, font->emptychar.y, font->between.x, font->between.y, f, 0, 0, xdim-1, ydim-1);
-}
+    vec2_t const ret = G_ScreenText(drawTile, x, y, z, 0, 0, t, s, p, 2|8|16|ROTATESPRITE_FULL16, 0, font->emptychar.x, font->emptychar.y, font->between.x, ybetween, f, 0, ydim_upper, xdim-1, ydim_lower);
+    return ret;
 #endif
+}
 
 static int32_t Menu_FindOptionBinarySearch(MenuOption_t *object, const int32_t query, uint16_t searchstart, uint16_t searchend)
 {
@@ -6032,9 +6095,11 @@ static void Menu_RunInput_FileSelect_Select(MenuFileSelect_t *object);
 
 static int32_t M_RunMenu_Menu(Menu_t *cm, MenuMenu_t *menu, MenuEntry_t *currentry, int32_t state, const vec2_t origin, bool actually_draw)
 {
-    MENU_TRACE_SCOPE("M_RunMenu_Menu", (int32_t)cm->menuID);
+    MENU_TRACE_SCOPE("M_RunMenu_Menu", (int32_t)(cm ? cm->menuID : -1));
     Menu_EnsureMenuArtLoaded();
-    ALOG("M_RunMenu_Menu cm=%d type=%d actually_draw=%d", (int)cm->menuID, (int)cm->type, (int)actually_draw);
+    if (!cm)
+        return 0;
+    ALOG("M_RunMenu_Menu cm=%d type=%d actually_draw=%d", (int)(cm ? cm->menuID : -1), (int)(cm ? cm->type : -1), (int)actually_draw);
     int32_t totalHeight = 0;
 
     // RIP MenuGroup_t b. 2014-03-?? d. 2014-11-29
@@ -6119,22 +6184,39 @@ static int32_t M_RunMenu_Menu(Menu_t *cm, MenuMenu_t *menu, MenuEntry_t *current
             status |= MT_YCenter;
             int32_t const y_internal = origin.y + y_upper + y + (height>>1) - menu->scrollPos;
 
+            MenuFont_t const *drawFont = entry->font;
+#ifdef __ANDROID__
+            drawFont = &MF_Minifont;
+#endif
+
             vec2_t textsize;
             if (dodraw)
-                textsize = Menu_Text(origin.x + x + indent, y_internal, entry->font, entry->name, status, ydim_upper, ydim_lower);
+            {
+#ifdef __ANDROID__
+                ALOG("M_RunMenu_Menu draw entry=%d type=%d selected=%d y=%d", (int)e, (int)entry->type, (int)(e == menu->currentEntry), (int)y);
+#endif
+                textsize = Menu_Text(origin.x + x + indent, y_internal, drawFont, entry->name, status, ydim_upper, ydim_lower);
+#ifdef __ANDROID__
+                ALOG("M_RunMenu_Menu drew text entry=%d", (int)e);
+#endif
+            }
 
             if (entry->format->width < 0)
                 status |= MT_XRight;
 
             if (dodraw && (status & MT_Selected) && state != 1)
             {
+#ifdef __ANDROID__
+                ALOG("M_RunMenu_Menu skip cursor entry=%d", (int)e);
+#else
                 if (status & MT_XCenter)
                 {
-                    Menu_DrawCursorLeft(origin.x + (MENU_MARGIN_CENTER<<16) + entry->font->cursorCenterPosition, y_internal, entry->font->cursorScale);
-                    Menu_DrawCursorRight(origin.x + (MENU_MARGIN_CENTER<<16) - entry->font->cursorCenterPosition, y_internal, entry->font->cursorScale);
+                    Menu_DrawCursorLeft(origin.x + (MENU_MARGIN_CENTER<<16) + drawFont->cursorCenterPosition, y_internal, drawFont->cursorScale);
+                    Menu_DrawCursorRight(origin.x + (MENU_MARGIN_CENTER<<16) - drawFont->cursorCenterPosition, y_internal, drawFont->cursorScale);
                 }
                 else
-                    Menu_DrawCursorLeft(origin.x + x + indent - entry->font->cursorLeftPosition, y_internal, entry->font->cursorScale2);
+                    Menu_DrawCursorLeft(origin.x + x + indent - drawFont->cursorLeftPosition, y_internal, drawFont->cursorScale2);
+#endif
             }
 
             if (entry->name != nullptr && entry->name[0] != '\0')
@@ -6695,8 +6777,10 @@ static int32_t M_RunMenu_Menu(Menu_t *cm, MenuMenu_t *menu, MenuEntry_t *current
         }
 
         // draw indicators if applicable
+#ifndef __ANDROID__
         if (actually_draw)
             Menu_RunScrollbar(cm, menu->format, y_upper + totalHeight, &menu->scrollPos, 320<<16, origin);
+#endif
     }
 
     return totalHeight;
@@ -6985,8 +7069,15 @@ static void Menu_Recurse(MenuID_t cm, const vec2_t origin)
     }
 }
 
-static void Menu_Run(Menu_t *cm, const vec2_t origin)
+void Menu_Run(Menu_t *cm, const vec2_t origin)
 {
+    static int androidMenuRunLogCount = 0;
+    ALOG("Menu_Run ENTER cm_ptr=%p id=%d type=%d origin=%d,%d count=%d", (void *)cm, (int)(cm ? cm->menuID : -1), (int)(cm ? cm->type : -1), (int)origin.x, (int)origin.y, androidMenuRunLogCount++);
+    if (!cm)
+    {
+        ALOG("Menu_Run NULL cm - returning");
+        return;
+    }
     Menu_Recurse(cm->menuID, origin);
 
     switch (cm->type)
@@ -7068,7 +7159,9 @@ static void Menu_Run(Menu_t *cm, const vec2_t origin)
 
             if (object->title != NoTitle)
                 Menu_DrawTopBar(origin);
-
+#ifdef __ANDROID__
+            ALOG("M_RunMenu_Menu after Menu_DrawTopBar cm=%d type=%d branch=FileSelect", (int)cm->menuID, (int)cm->type);
+#endif
 
             // black translucent background underneath file lists
             Menu_BlackRectangle(origin.x + (36<<16), origin.y + (42<<16), 248<<16, 123<<16, 1|32);
@@ -7164,6 +7257,9 @@ static void Menu_Run(Menu_t *cm, const vec2_t origin)
             }
 
             Menu_PreDraw(cm->menuID, NULL, origin);
+#ifdef __ANDROID__
+            ALOG("M_RunMenu_Menu after Menu_PreDraw cm=%d type=%d branch=FileSelect", (int)cm->menuID, (int)cm->type);
+#endif
 
             if (object->title != NoTitle)
                 Menu_DrawTopBarCaption(object->title, origin);
@@ -7190,8 +7286,14 @@ static void Menu_Run(Menu_t *cm, const vec2_t origin)
 
             if (object->title != NoTitle)
                 Menu_DrawTopBar(origin);
+#ifdef __ANDROID__
+            ALOG("M_RunMenu_Menu after Menu_DrawTopBar cm=%d type=%d branch=Panel", (int)cm->menuID, (int)cm->type);
+#endif
 
             Menu_PreDraw(cm->menuID, NULL, origin);
+#ifdef __ANDROID__
+            ALOG("M_RunMenu_Menu after Menu_PreDraw cm=%d type=%d branch=Panel", (int)cm->menuID, (int)cm->type);
+#endif
 
             if (object->title != NoTitle)
                 Menu_DrawTopBarCaption(object->title, origin);
@@ -7208,8 +7310,14 @@ static void Menu_Run(Menu_t *cm, const vec2_t origin)
 
             if (menu->title != NoTitle)
                 Menu_DrawTopBar(origin);
+#ifdef __ANDROID__
+            ALOG("M_RunMenu_Menu after Menu_DrawTopBar cm=%d type=%d branch=CdPlayer", (int)cm->menuID, (int)cm->type);
+#endif
 
             Menu_PreDraw(cm->menuID, NULL, origin);
+#ifdef __ANDROID__
+            ALOG("M_RunMenu_Menu after Menu_PreDraw cm=%d type=%d branch=CdPlayer", (int)cm->menuID, (int)cm->type);
+#endif
 
             M_RunMenu_CdPlayer(cm, menu, origin);
 
@@ -7238,8 +7346,14 @@ static void Menu_Run(Menu_t *cm, const vec2_t origin)
 
                 if (menu->title != NoTitle)
                     Menu_DrawTopBar(origin);
+#ifdef __ANDROID__
+                ALOG("M_RunMenu_Menu after Menu_DrawTopBar cm=%d type=%d branch=Menu", (int)cm->menuID, (int)cm->type);
+#endif
 
                 Menu_PreDraw(cm->menuID, currentry, origin);
+#ifdef __ANDROID__
+                ALOG("M_RunMenu_Menu after Menu_PreDraw cm=%d type=%d branch=Menu", (int)cm->menuID, (int)cm->type);
+#endif
 
                 M_RunMenu_Menu(cm, menu, currentry, state, origin);
             }
@@ -8531,6 +8645,9 @@ static void Menu_RunInput(Menu_t *cm)
 void M_DisplayMenus(void)
 {
     vec2_t origin = { 0, 0 }, previousOrigin = { 0, 0 };
+#ifdef __ANDROID__
+    ALOG("M_DisplayMenus enter gm=%d menu=%d current=%d", (int)g_player[myconnectindex].ps->gm, (int)g_currentMenu, (int)(m_currentMenu ? m_currentMenu->menuID : -1));
+#endif
 
     Net_GetPackets();
 
@@ -8585,19 +8702,34 @@ void M_DisplayMenus(void)
         previousOrigin.x = mulscale15(screenwidth, m_animation.out(&m_animation));
     }
 
+#ifdef __ANDROID__
+    ALOG("M_DisplayMenus before background draw gm=%d menu=%d current=%d", (int)g_player[myconnectindex].ps->gm, (int)g_currentMenu, (int)(m_currentMenu ? m_currentMenu->menuID : -1));
+    G_DrawBackground();
+    ALOG("M_DisplayMenus after background draw before Menu_Run");
+#endif
+
     if (m_parentMenu && backgroundOK)
     {
+        ALOG("M_DisplayMenus before Menu_Run parent id=%d", (int)m_parentMenu->menuID);
         Menu_Run(m_parentMenu, origin);
+        ALOG("M_DisplayMenus after Menu_Run parent id=%d", (int)m_parentMenu->menuID);
     }
 
     // Display the menu, with a transition animation if applicable.
     if (totalclock < m_animation.start + m_animation.length)
     {
+        ALOG("M_DisplayMenus before Menu_Run animation prev=%d current=%d", (int)(m_animation.previous ? m_animation.previous->menuID : -1), (int)(m_animation.current ? m_animation.current->menuID : -1));
         Menu_Run(m_animation.previous, previousOrigin);
+        ALOG("M_DisplayMenus after Menu_Run animation previous");
         Menu_Run(m_animation.current, origin);
+        ALOG("M_DisplayMenus after Menu_Run animation current");
     }
     else
+    {
+        ALOG("M_DisplayMenus before Menu_Run current id=%d", (int)(m_currentMenu ? m_currentMenu->menuID : -1));
         Menu_Run(m_currentMenu, origin);
+        ALOG("M_DisplayMenus after Menu_Run current id=%d", (int)(m_currentMenu ? m_currentMenu->menuID : -1));
+    }
 
 #if !defined EDUKE32_TOUCH_DEVICES
     if (m_menuchange_watchpoint >= 3)

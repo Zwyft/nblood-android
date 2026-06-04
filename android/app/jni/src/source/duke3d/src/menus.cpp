@@ -38,6 +38,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "sbar.h"
 #include "joystick.h"
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#define ALOG(...) __android_log_print(ANDROID_LOG_INFO, "NBloodMenu", __VA_ARGS__)
+#else
+#define ALOG(...) 
+#endif
+
 #ifndef __ANDROID__
 droidinput_t droidinput;
 #endif
@@ -2013,6 +2020,7 @@ It also initializes some data in loops rather than statically at compile time.
 */
 void Menu_Init(void)
 {
+    ALOG("Menu_Init started");
     int32_t i, j, k;
     int32_t const *init_keybind_order = NULL;
 
@@ -5813,7 +5821,15 @@ static void Menu_RunInput_FileSelect_Select(MenuFileSelect_t *object);
 
 static int32_t M_RunMenu_Menu(Menu_t *cm, MenuMenu_t *menu, MenuEntry_t *currentry, int32_t state, const vec2_t origin, int actually_draw)
 {
-    int32_t totalHeight = 0;
+    ALOG("M_RunMenu_Menu: ENTRY cm=%p menu=%p currentry=%p state=%d actually_draw=%d", (void*)cm, (void*)menu, (void*)currentry, state, actually_draw);
+    
+    if (cm == nullptr || cm == (Menu_t*)0x1 || (uintptr_t)cm > 0xFFFFFFFF00000000ULL)
+    {
+        ALOG("M_RunMenu_Menu: INVALID cm detected, returning early");
+        return -1;
+    }
+    
+    int32_t totalHeight =0;
 
     // RIP MenuGroup_t b. 2014-03-?? d. 2014-11-29
     {
@@ -5924,6 +5940,7 @@ static int32_t M_RunMenu_Menu(Menu_t *cm, MenuMenu_t *menu, MenuEntry_t *current
 
             if (dodraw)
             {
+                ALOG("M_RunMenu_Menu: dodraw true, entry type=%d", entry->type);
                 const int32_t mousex = origin.x + x - ((status & MT_XCenter) ? ((textsize.x>>17)<<16) : 0);
                 const int32_t mousey = origin.y + y_upper + y - menu->scrollPos;
                 int32_t mousewidth = (status & MT_XCenter) ? textsize.x : klabs(entry->format->width);
@@ -5931,6 +5948,7 @@ static int32_t M_RunMenu_Menu(Menu_t *cm, MenuMenu_t *menu, MenuEntry_t *current
                 if (entry->name)
                     x += klabs(entry->format->width);
 
+                ALOG("M_RunMenu_Menu: before switch, entry type=%d", entry->type);
                 switch (entry->type)
                 {
                     case Spacer:
@@ -6680,6 +6698,14 @@ static void Menu_Recurse(MenuID_t cm, const vec2_t origin)
 
 static void Menu_Run(Menu_t *cm, const vec2_t origin)
 {
+    ALOG("Menu_Run: ENTRY cm=%p cm->menuID=%d", cm, cm ? cm->menuID : -1);
+    
+    if (cm == nullptr)
+    {
+        ALOG("Menu_Run: cm is nullptr, returning early");
+        return;
+    }
+    
     Menu_Recurse(cm->menuID, origin);
 
     switch (cm->type)
@@ -7435,6 +7461,14 @@ static void Menu_RunInput_FileSelect_Select(MenuFileSelect_t *object)
 
 static void Menu_RunInput(Menu_t *cm)
 {
+    ALOG("Menu_RunInput: ENTRY cm=%p", cm);
+    
+    if (cm == nullptr)
+    {
+        ALOG("Menu_RunInput: cm is nullptr, returning early");
+        return;
+    }
+    
     switch (cm->type)
     {
         case Panel:

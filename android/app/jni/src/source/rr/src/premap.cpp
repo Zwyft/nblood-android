@@ -502,10 +502,12 @@ static void G_DoLoadScreen(const char *statustext, int32_t percent)
 
         if (REALITY)
         {
+#ifndef __ANDROID__
             RT_DisablePolymost(0);
             RT_RotateSpriteSetColor(255, 255, 255, 255);
             RT_RotateSprite(160, 120, 100, 100, 3670, RTRS_SCALED);
             RT_EnablePolymost();
+#endif
         }
         else
         {
@@ -2017,7 +2019,11 @@ void G_NewGame(int volumeNum, int levelNum, int skillNum)
     int const UserMap = Menu_HaveUserMap();
 
     if (REALITY && (!g_netServer && ud.multimode < 2) && UserMap == 0 && levelNum == 0)
+    {
+#ifndef __ANDROID__
         RT_Intro();
+#endif
+    }
 
     // we don't want the intro to play after the multiplayer setup screen
     if (!RR && (!g_netServer && ud.multimode < 2) && UserMap == 0 &&
