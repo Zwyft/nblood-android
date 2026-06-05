@@ -1018,13 +1018,14 @@ void RT_DisplaySky(void)
 
 void RT_DisablePolymost(int useShader)
 {
-#ifdef __ANDROID__
-    return;  // Don't call Polymost functions on Android - OpenGL context not ready
-#endif
 #ifdef USE_OPENGL
     if (rt_renderactive)
         return;
-    rt_renderactive = 1 | (useShader << 1);
+    // On Android, set renderactive without the shader bit; skip Polymost shader setup
+    // which requires the Polymost GLSL program that is not used on OpenGL ES.
+    rt_renderactive = 1;
+#ifndef __ANDROID__
+    rt_renderactive |= (useShader << 1);
     if (useShader)
         RT_SetShader();
     else
@@ -1037,6 +1038,7 @@ void RT_DisablePolymost(int useShader)
         polymost_setFogEnabled(false);
         polymost_usePaletteIndexing(false);
     }
+#endif
     RT_SetTexComb(0);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 #endif
@@ -1047,11 +1049,14 @@ void RT_EnablePolymost()
 #ifdef USE_OPENGL
     if (!rt_renderactive)
         return;
+    // Always reset matrices and GL state so subsequent 2D rendering (HUD, tint) is correct.
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     buildgl_setDisabled(GL_CULL_FACE);
+#ifndef __ANDROID__
+    // Polymost shader teardown — not needed on Android (no Polymost GLSL program).
     if (rt_renderactive & 2)
     {
         polymost_resetVertexPointers();
@@ -1061,6 +1066,7 @@ void RT_EnablePolymost()
     polymost_setFogEnabled(true);
     polymost_usePaletteIndexing(true);
     polymost2d = 0;
+#endif
     rt_renderactive = 0;
 #endif
 }
@@ -4301,14 +4307,6 @@ void RT_DrawTileFlash(int x, int y, int picnum, float sx, float sy, int orientat
 
 void RT_RenderScissor(float x1, float y1, float x2, float y2, bool absolute/* = false */)
 {
-#if defined(__ANDROID__)
-    UNREFERENCED_PARAMETER(x1);
-    UNREFERENCED_PARAMETER(y1);
-    UNREFERENCED_PARAMETER(x2);
-    UNREFERENCED_PARAMETER(y2);
-    UNREFERENCED_PARAMETER(absolute);
-    return;
-#endif
 #ifdef USE_OPENGL
     if (!absolute)
     {
@@ -4340,9 +4338,6 @@ void RT_RenderScissor(float x1, float y1, float x2, float y2, bool absolute/* = 
 
 void RT_RenderUnsetScissor(void)
 {
-#if defined(__ANDROID__)
-    return;
-#endif
 #ifdef USE_OPENGL
     glScissor(0, 0, xdim, ydim);
     buildgl_setDisabled(GL_SCISSOR_TEST);
