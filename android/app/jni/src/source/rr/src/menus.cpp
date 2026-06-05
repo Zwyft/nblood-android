@@ -2778,9 +2778,15 @@ static void Menu_Pre(MenuID_t cm)
 static void Menu_PreDrawBackground(MenuID_t cm, const vec2_t origin)
 {
     MENU_TRACE_SCOPE("Menu_PreDrawBackground", (int32_t)cm);
+#ifdef __ANDROID__
+    ALOG("Menu_PreDrawBackground cm=%d origin=%d,%d", (int)cm, (int)origin.x, (int)origin.y);
+#endif
     switch (cm)
     {
     case MENU_MAIN:
+#ifdef __ANDROID__
+        ALOG("Menu_PreDrawBackground MENU_MAIN DEER=%d REALITY=%d", (int)DEER, (int)REALITY);
+#endif
         if (DEER)
             Menu_DHLeaonardHeadDisplay(origin);
         break;
@@ -7340,9 +7346,17 @@ void Menu_Run(Menu_t *cm, const vec2_t origin)
 
             if (state != 2)
             {
+#ifdef __ANDROID__
+                ALOG("case Menu before Menu_Pre cm=%d", (int)cm->menuID);
+#endif
                 Menu_Pre(cm->menuID);
-
+#ifdef __ANDROID__
+                ALOG("case Menu before PreDrawBackground cm=%d", (int)cm->menuID);
+#endif
                 Menu_PreDrawBackground(cm->menuID, origin);
+#ifdef __ANDROID__
+                ALOG("case Menu after PreDrawBackground cm=%d", (int)cm->menuID);
+#endif
 
                 if (menu->title != NoTitle)
                     Menu_DrawTopBar(origin);

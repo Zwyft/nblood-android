@@ -1049,10 +1049,10 @@ void RT_EnablePolymost()
 #ifdef USE_OPENGL
     if (!rt_renderactive)
         return;
-    // Always reset matrices and GL state so subsequent 2D rendering (HUD, tint) is correct.
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
+    // Reset matrices and GL state so subsequent 2D rendering (HUD, tint) is correct.
     glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     buildgl_setDisabled(GL_CULL_FACE);
 #ifndef __ANDROID__
@@ -3990,12 +3990,18 @@ void RT_RotateSprite(float x, float y, float sx, float sy, int tilenum, int orie
 {
 #if defined __ANDROID__
     UNREFERENCED_PARAMETER(screenCorrection);
+    // Skip tiles that are out of bounds or not loaded in the Build tile system.
+    // RT-specific tiles (e.g. 0xe68) may not exist in the ART files on Android.
+    if (tilenum < 0 || tilenum >= MAXTILES || !waloff[tilenum])
+        return;
     int32_t dastat = 2|8|16|64;
     if (orientation & 4) dastat |= 4;
     if (orientation & 8) dastat |= 8;
     if (orientation & 256) dastat |= 256;
     if (orientation & 512) dastat |= 512;
     int32_t zoom = (int32_t)(65536.f * sx / 100.f);
+    if (zoom <= 0)
+        return;
     rotatesprite_fs((int32_t)(x * 65536.f), (int32_t)(y * 65536.f), zoom, 0, tilenum, 0, 0, dastat);
     return;
 #endif
