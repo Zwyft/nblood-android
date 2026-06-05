@@ -1049,14 +1049,18 @@ void RT_EnablePolymost()
 #ifdef USE_OPENGL
     if (!rt_renderactive)
         return;
-    // Reset matrices and GL state so subsequent 2D rendering (HUD, tint) is correct.
+    // On OpenGL ES 2.0 (Android), reset Polymost's 2D projection state so the
+    // next rotatesprite call re-establishes the correct orthographic projection.
+    // glMatrixMode/glLoadIdentity do not exist on ES 2.0 and must not be called.
+    polymost2d = 0;
+    buildgl_setDisabled(GL_CULL_FACE);
+#ifndef __ANDROID__
+    // Fixed-function matrix reset — not available on OpenGL ES 2.0.
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    buildgl_setDisabled(GL_CULL_FACE);
-#ifndef __ANDROID__
-    // Polymost shader teardown — not needed on Android (no Polymost GLSL program).
+    // Polymost shader teardown.
     if (rt_renderactive & 2)
     {
         polymost_resetVertexPointers();
