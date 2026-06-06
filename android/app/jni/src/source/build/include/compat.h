@@ -1339,6 +1339,9 @@ void set_memerr_handler(void (*handlerfunc)(int32_t, int32_t, const char *, cons
 EDUKE32_NORETURN void handle_memerr(int32_t bytes);
 
 #ifdef __cplusplus
+
+#ifndef __ANDROID__
+// Desktop/iOS: use SMMALLOC segregated storage for performance
 #include "smmalloc.h"
 
 extern sm_allocator g_sm_heap;
@@ -1435,7 +1438,75 @@ static FORCE_INLINE void *xaligned_calloc(bsize_t const alignment, bsize_t const
 
 static FORCE_INLINE void xfree(void *const ptr) { _sm_free(g_sm_heap, ptr); }
 static FORCE_INLINE void xaligned_free(void *const ptr) { _sm_free(g_sm_heap, ptr); }
-#endif
+
+#else // __ANDROID__
+// Android: bypass SMMALLOC and use the system allocator (Scudo) directly.
+// SMMALLOC reserves its own VM region; anything in that region passed to
+// system free() triggers "value not allocated" from Scudo and aborts the app.
+// Zeta Touch / eduke32_mobile uses this same system-allocator approach on Android.
+
+static FORCE_INLINE void engineCreateAllocator(void) {}
+static FORCE_INLINE void engineDestroyAllocator(void) {}
+
+static FORCE_INLINE char *xstrdup(const char *s)
+{
+    char *ptr = ::strdup(s);
+    if (EDUKE32_PREDICT_TRUE(ptr != nullptr)) return ptr;
+    handle_memerr(0);
+    EDUKE32_UNREACHABLE_SECTION(return nullptr);
+}
+
+static FORCE_INLINE void *xmalloc(bsize_t const size)
+{
+    void *ptr = ::malloc(size);
+    if (EDUKE32_PREDICT_TRUE(ptr != nullptr)) return ptr;
+    handle_memerr(size);
+    EDUKE32_UNREACHABLE_SECTION(return nullptr);
+}
+
+static FORCE_INLINE void *xcalloc(bsize_t const nmemb, bsize_t const size)
+{
+    void *ptr = ::calloc(nmemb, size);
+    if (EDUKE32_PREDICT_TRUE(ptr != nullptr)) return ptr;
+    handle_memerr(size);
+    EDUKE32_UNREACHABLE_SECTION(return nullptr);
+}
+
+static FORCE_INLINE void *xrealloc(void * const ptr, bsize_t const size)
+{
+    void *newptr = ::realloc(ptr, size);
+    if (EDUKE32_PREDICT_TRUE(newptr != nullptr || size == 0)) return newptr;
+    handle_memerr(size);
+    EDUKE32_UNREACHABLE_SECTION(return nullptr);
+}
+
+static FORCE_INLINE void *xaligned_alloc(bsize_t const alignment, bsize_t const size)
+{
+    void *ptr = ::memalign(alignment, size);
+    if (EDUKE32_PREDICT_TRUE(ptr != nullptr)) return ptr;
+    handle_memerr(size);
+    EDUKE32_UNREACHABLE_SECTION(return nullptr);
+}
+
+static FORCE_INLINE void *xaligned_calloc(bsize_t const alignment, bsize_t const count, bsize_t const size)
+{
+    bsize_t const blocksize = count * size;
+    void *ptr = ::memalign(alignment, blocksize);
+    if (EDUKE32_PREDICT_TRUE(ptr != nullptr))
+    {
+        Bmemset(ptr, 0, blocksize);
+        return ptr;
+    }
+    handle_memerr(size);
+    EDUKE32_UNREACHABLE_SECTION(return nullptr);
+}
+
+static FORCE_INLINE void xfree(void *const ptr) { ::free(ptr); }
+static FORCE_INLINE void xaligned_free(void *const ptr) { ::free(ptr); }
+
+#endif // __ANDROID__
+
+#endif // __cplusplus (outer)
 
 // jump through hoops so stuff with C linkage works
 #ifdef __cplusplus
