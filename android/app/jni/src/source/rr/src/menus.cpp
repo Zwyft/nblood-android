@@ -162,17 +162,16 @@ static void Menu_DrawBackground(const vec2_t origin)
 {
     MENU_TRACE_SCOPE("Menu_DrawBackground", 0);
     Menu_EnsureMenuArtLoaded();
-#ifdef __ANDROID__
-    return;
-#endif
     if (REALITY)
     {
+#ifndef __ANDROID__
         float ox = origin.x * (1.f/65536.f) * (240.f - 32.f) / (240.f);
         float oy = origin.y * (1.f/65536.f) * (240.f - 32.f) / (240.f) * 1.2f;
         RT_DisablePolymost(0);
         RT_RotateSpriteSetColor(255, 255, 255, 256);
         RT_RotateSprite(160 + ox, 120 + oy, 100, 100, 3670, RTRS_SCALED);
         RT_EnablePolymost();
+#endif
         return;
     }
 #ifdef __ANDROID__
@@ -239,10 +238,12 @@ static void Menu_DrawCursorCommon(int32_t x, int32_t y, int32_t z, int32_t picnu
 {
     if (REALITY)
     {
+#ifndef __ANDROID__
         RT_DisablePolymost(0);
         RT_RotateSpriteSetColor(255, 255, 255, 256);
         RT_RotateSprite(x * (1.f/65536.f), y * (1.f/65536.f) * 1.2f, z * (100.f/65536.f), z * (100.f/65536.f), 3200, 0, false);
         RT_EnablePolymost();
+#endif
         return;
     }
 #ifdef __ANDROID__
@@ -2887,9 +2888,6 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t *entry, const vec2_t origin)
         l += 4;
         fallthrough__;
     case MENU_MAIN:
-#ifdef __ANDROID__
-        break;
-#else
         if (RR)
         {
             if (DEER)
@@ -2901,6 +2899,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t *entry, const vec2_t origin)
         }
         else if (REALITY)
         {
+#ifndef __ANDROID__
             if (cm != MENU_MAIN)
                 break;
             int logotics = (int)(totalclock - m_menustarttics);
@@ -2930,6 +2929,7 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t *entry, const vec2_t origin)
                 S_PlaySound(12);
                 m_logosoundcnt++;
             }
+#endif
         }
         else
         {
@@ -2940,7 +2940,6 @@ static void Menu_PreDraw(MenuID_t cm, MenuEntry_t *entry, const vec2_t origin)
                 Menu_DrawIfReady(origin, MENU_MARGIN_CENTER + 100, 36, 65536L, plutopakTile, sintable[((int32_t) totalclock<<4)&2047]>>11, 0, 2+8);
             }
         }
-#endif
         break;
 
     case MENU_CDPLAYER:
