@@ -37,6 +37,9 @@ import com.opentouchgaming.razetouch.engineoptions.EngineOptionsRaze;
 import java.util.ArrayList;
 import java.util.List;
 
+// Added for asset extraction
+import com.opentouchgaming.razetouch.util.AssetExtractor;
+
 
 public class EntryActivity extends FragmentActivity
 {
@@ -235,6 +238,10 @@ public class EntryActivity extends FragmentActivity
 
             // Create a new Fragment to be placed in the activity layout
             mainFragment = new LauncherFragment();
+            // Instruct the fragment to auto‑launch Duke64 on start
+            Bundle autoArgs = new Bundle();
+            autoArgs.putBoolean("autoLaunch", true);
+            mainFragment.setArguments(autoArgs);
 
             // In case this activity was started with special instructions from an
             // Intent, pass the Intent's extras to the fragment as arguments
@@ -256,7 +263,9 @@ public class EntryActivity extends FragmentActivity
         else
         {
             // Permission has already been granted
-            log.log(DebugLog.Level.D, "Permission already granted");
+                log.log(DebugLog.Level.D, "Permission already granted");
+                // Extract bundled Duke assets now that we have write permission
+                AssetExtractor.extractAssets(this);
         }
     }
 
@@ -277,20 +286,22 @@ public class EntryActivity extends FragmentActivity
     {
         switch (requestCode)
         {
-            case MY_PERMISSIONS_REQUEST_SD_WRITE:
+        case MY_PERMISSIONS_REQUEST_SD_WRITE:
+        {
+            // If request is cancelled, the result arrays are empty.
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
             {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-                {
-                    log.log(DebugLog.Level.D, "Permission granted");
-                }
-                else
-                {
-                    log.log(DebugLog.Level.D, "Permission denined");
-                }
-
-                return;
+                log.log(DebugLog.Level.D, "Permission granted");
+                // Now we can extract the assets safely
+                AssetExtractor.extractAssets(this);
             }
+            else
+            {
+                log.log(DebugLog.Level.D, "Permission denined");
+            }
+
+            return;
+        }
         }
     }
 

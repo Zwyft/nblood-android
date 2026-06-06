@@ -74,6 +74,36 @@ public class LauncherFragment extends MainFragment
         awolLauncher = new AWOLLauncher();
         amcLauncher = new AMCLauncher();
         nbloodLauncher = new NBloodLauncher();
+
+        // Auto‑launch Duke64 if requested via fragment arguments
+        boolean autoLaunch = getArguments() != null && getArguments().getBoolean("autoLaunch", false);
+        if (autoLaunch) {
+            // Schedule on UI thread after fragment is attached
+            getActivity().runOnUiThread(() -> {
+                // Find the Duke engine definition
+                GameEngine dukeEngine = null;
+                for (GameEngine engine : AppInfo.gameEngines) {
+                    if (engine.engine == GameEngine.Engine.RAZE_DUKE) {
+                        dukeEngine = engine;
+                        break;
+                    }
+                }
+                if (dukeEngine == null) {
+                    log.log(DebugLog.Level.E, "Duke engine not found, cannot auto‑launch");
+                    return;
+                }
+                // Build subgame list for Duke launcher
+                ArrayList<SubGame> dukeSubGames = new ArrayList<>();
+                dukeLauncher.updateSubGames(dukeEngine, dukeSubGames);
+                if (dukeSubGames.isEmpty()) {
+                    log.log(DebugLog.Level.E, "No Duke subgames available for auto‑launch");
+                    return;
+                }
+                // Select first subgame and launch it
+                selectedSubGame = dukeSubGames.get(0);
+                launchGame(dukeEngine, false, null);
+            });
+        }
     }
 
     @Override
